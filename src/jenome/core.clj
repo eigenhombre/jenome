@@ -6,11 +6,21 @@
 
 (gl/defcodec hdr-codec [:uint32-le :uint32-le :uint32-le :uint32-le])
 
-(def buffer (byte-array 16))
+(gl/defcodec byte-codec [:byte])
 
-(.read (io/input-stream "/Users/jacobsen/Desktop/hg19.2bit") buffer)
+(gl/defcodec index-codec [:byte
+                          (gl/repeated [:byte] :prefix :byte)
+                          :uint32-le])
 
-(let [[signature version sequence-count reserved] (glio/decode hdr-codec buffer)]
+(defn get-bytes [n inf]
+  (let [buf (byte-array n)]
+    (.read inf buf)
+    buf))
+
+(let [infile (io/input-stream "/Users/jacobsen/Desktop/hg19.2bit")
+      [signature version sequence-count reserved] (glio/decode hdr-codec (get-bytes 16 infile))]
   (assert (= signature 0x1A412743))
   (assert (= version reserved 0))
-  (println sequence-count "sequences in file."))
+  (let [[name-size] (glio/decode byte-codec (get-bytes 1 infile))]
+    (println "name-size" name-size)
+    (println sequence-count "sequences in file.")))
