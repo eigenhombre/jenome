@@ -5,7 +5,7 @@
             [clojure.java.io :as io]))
 
 "
-Decode Human Genome in 2-bit format as documented[1].
+Decode Human Genome in 2-bit format as documented at:
 http://genome.ucsc.edu/FAQ/FAQformat#format7
 "
 
