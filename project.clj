@@ -1,5 +1,6 @@
 (defproject jenome "1.0.0-SNAPSHOT"
   :description "FIXME: write description"
+  :main jenome.core
   :dependencies [[org.clojure/clojure "1.3.0"]
                  [org.clojure/math.numeric-tower "0.0.1"]
                  [expectations "1.3.3"]

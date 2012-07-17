@@ -1,4 +1,5 @@
 (ns jenome.core
+  (:gen-class)
   (:use expectations)
   (:require [gloss.core :as gl]
             [gloss.io :as glio]
@@ -123,4 +124,5 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
          (println)))))
 
 
-;; (print (time (hg 100000)))
+(defn -main []
+  (print (time (hg 100000))))
