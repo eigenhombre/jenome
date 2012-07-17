@@ -2,7 +2,7 @@
 
 A very early cut at code for playing around with the human genome.
 
-Usage:
+### Usage:
 
 Download genome code from:
 
@@ -22,7 +22,7 @@ This will (or should) spin through all the available base pairs in all
 because, though the blocks decode in a consistent fashion, I haven't
 been able to cross-check this with results from anywhere else yet.
 
-## License
+### License
 
 Copyright (C) 2012 John Jacobsen
 
