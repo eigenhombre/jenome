@@ -101,7 +101,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
 
 (defn hg
   ([]
-     (hg 1000000))
+     (hg 100000))
   ([blocksiz]
      (let [infile (io/input-stream @genome-file)
            seqcount (sequence-count infile)
@@ -122,4 +122,5 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
              (flush)))
          (println)))))
 
-(print (time (hg 100000)))
+
+;; (print (time (hg 100000)))
