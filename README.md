@@ -27,11 +27,11 @@ cross-check this with results from anywhere else yet.
 
 ### Planned Improvements
 
-* Manage download and caching of genome files
-* Cross-checks w/ other data sources
-* Make code more lazy/functional and less side-effect-y
-* Add hooks for various analyses
-* Work with a real molecular biologist to come up w/ more cool things to do
+1. Manage download and caching of genome files
+1. Cross-checks w/ other data sources
+1. Make code more lazy/functional and less side-effect-y
+1. Add hooks for various analyses
+1. Work with a real molecular biologist to come up w/ more cool things to do
 
 ### License
 
