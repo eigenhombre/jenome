@@ -2,6 +2,7 @@
   (:use expectations)
   (:require [gloss.core :as gl]
             [gloss.io :as glio]
+            [clojure.math.numeric-tower :as math]
             [clojure.java.io :as io]))
 
 "
@@ -50,14 +51,13 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
         offset (get32 infile)]
     [seqname offset]))
 
-
 (defn deltas [s]
   (map - (rest s) s))
 
 (defn monotonic? [s]
   (empty? (filter #(< % 0) (deltas s))))
 
-(defn decode-sequence
+(defn decode-sequence-fields
   [infile]
   (let [dna-size (get32 infile)
         n-block-count (get32 infile)
@@ -70,16 +70,56 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
 
     (assert (monotonic? n-block-starts))
     (assert (monotonic? mask-block-starts))
-
+    (assert (= reserved 0))
     {:dna-size dna-size
      :n-block-count n-block-count
-     :mask-block-count mask-block-count
-     :reserved reserved}))
+     :mask-block-count mask-block-count}))
 
-(let [infile (io/input-stream @genome-file)
-      seqcount (sequence-count infile)
-      index (doall (for [i (range seqcount)]
-                     (get-seq-header infile)))
-      seqnames (map first index)]
-  (println (decode-sequence infile))
-  (println (map int (get-bytes 260 infile))))
+(defn nybs-to-bases [n]
+  (case n
+    0 :T
+    1 :C
+    2 :A
+    3 :G
+    :default (throw (Exception. "Invalid nybble value!"))))
+
+(defn byte-to-base-pair [b]
+  (let [shifts (range 6 -2 -2)
+        nybs (map #(bit-and (bit-shift-right b %) 0x03) shifts)]
+    (map nybs-to-bases nybs)))
+
+(defn rounding-up-divide [num denom]
+  (math/ceil (/ num denom)))
+
+(defn partition-buffers
+  "Return buffer sizes required to cleanly read a total of n bytes no more than m at a time"
+  [n m]
+  (let [remainder (mod n m)]
+    (if (zero? remainder)
+      (repeat (/ n m) m)
+      (concat (repeat (dec (/ n m)) m) [remainder]))))
+
+(defn hg
+  ([]
+     (hg 1000000))
+  ([blocksiz]
+     (let [infile (io/input-stream @genome-file)
+           seqcount (sequence-count infile)
+           index (doall (for [i (range seqcount)]
+                          (get-seq-header infile)))
+           seqnames (map first index)]
+       (doseq [seqn (range seqcount)]
+         (println "Decoding sequence" seqn)
+         (let [header (decode-sequence-fields infile)
+               dna-size (header :dna-size)
+               dna-bytes (rounding-up-divide dna-size 4)
+               read-sizes (partition-buffers dna-bytes blocksiz)]
+           (println header)
+           (doseq [bufsiz read-sizes]
+             (doall
+              (mapcat byte-to-base-pair (get-bytes bufsiz infile)))
+             (print ".")
+             (flush)))
+         (println)))))
+
+(print (time (hg 100000)))
