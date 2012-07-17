@@ -5,9 +5,11 @@ A very early cut at code for playing around with the human genome.
 Usage:
 
 Download genome code from:
+
     http://hgdownload.cse.ucsc.edu/downloads.html
 
 Pull this source tree down and run src/jenome/core.clj in the repl:
+
     $ lein repl
     ; Tell it where you put the genome file:
     (def genome-file
