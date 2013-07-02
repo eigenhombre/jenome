@@ -3,20 +3,15 @@
   (:use midje.sweet
         [clojure.java.io :only [resource]]
         [gloss.core :only [defcodec repeated]]
-        [gloss.io :only [decode]])
-  (:require [gloss.core :as gl]
-            [gloss.io :as glio]
-            [clojure.math.numeric-tower :as math]
-            [clojure.java.io :as io]))
+        [gloss.io :only [decode decode-all]]))
 
 "
 Decode genome (human or otherwise) in 2-bit format as documented at:
 http://genome.ucsc.edu/FAQ/FAQformat#format7
 "
 
-(gl/defcodec hdr-codec (vec (repeat 4 :uint32-le)))
-(gl/defcodec byte-codec [:byte])
-(gl/defcodec u32 :uint32-le)
+(defcodec u32 :uint32-le)
+(defcodec hdr-codec (repeat 4 u32))
 
 (defn get-bytes
   [n inf]
@@ -27,7 +22,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
 (defn get-sequence-count-from-file-header
   [infile]
   (let [hdr-bytes (get-bytes 16 infile)
-        [signature ver cnt reserved] (glio/decode hdr-codec hdr-bytes)]
+        [signature ver cnt reserved] (decode hdr-codec hdr-bytes)]
   (assert (= signature 0x1A412743))
   (assert (= ver reserved 0))
   cnt))
@@ -38,16 +33,15 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
 
 (defn get32
   [infile]
-  (glio/decode u32 (get-bytes 4 infile)))
+  (decode u32 (get-bytes 4 infile)))
 
 (defn getwords
   [n infile]
-  (glio/decode-all u32 (get-bytes (* n 4) infile)))
+  (decode-all u32 (get-bytes (* n 4) infile)))
 
 (defn decode-sequence-block-header
   [infile]
-  (let [name-len-byte (get-bytes 1 infile)
-        name-len (first (glio/decode byte-codec name-len-byte))
+  (let [[name-len & _] (get-bytes 1 infile)
         seqname (bytes-to-str (get-bytes name-len infile))
         offset (get32 infile)]
     [seqname offset]))
@@ -90,7 +84,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
     (map nybs-to-bases nybs)))
 
 (defn rounding-up-divide [num denom]
-  (math/ceil (/ num denom)))
+  (clojure.math.numeric-tower/ceil (/ num denom)))
 
 (defn partition-buffer-sizes
   "Return buffer sizes required to cleanly read a total of n bytes no more than m at a time"
@@ -113,7 +107,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
   ([fname] (decode-genome 100000 fname))
   ([blocksiz fname]
      (apply concat
-             (let [infile (io/input-stream fname)
+             (let [infile (clojure.java.io/input-stream fname)
                    seqcount (get-sequence-count-from-file-header infile)
                    ;; Don't care about the index, but need to read the
                    ;; bytes to get to the right position:
