@@ -1,13 +1,16 @@
 (ns jenome.core
   (:gen-class)
-  (:use expectations)
+  (:use midje.sweet
+        [clojure.java.io :only [resource]]
+        [gloss.core :only [defcodec repeated]]
+        [gloss.io :only [decode]])
   (:require [gloss.core :as gl]
             [gloss.io :as glio]
             [clojure.math.numeric-tower :as math]
             [clojure.java.io :as io]))
 
 "
-Decode Human Genome in 2-bit format as documented at:
+Decode genome (human or otherwise) in 2-bit format as documented at:
 http://genome.ucsc.edu/FAQ/FAQformat#format7
 "
 
@@ -21,7 +24,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
     (.read inf buf)
     buf))
 
-(defn sequence-count
+(defn get-sequence-count-from-file-header
   [infile]
   (let [hdr-bytes (get-bytes 16 infile)
         [signature ver cnt reserved] (glio/decode hdr-codec hdr-bytes)]
@@ -41,10 +44,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
   [n infile]
   (glio/decode-all u32 (get-bytes (* n 4) infile)))
 
-(def genome-file
-  (atom "/Users/jacobsen/Programming/Lisp/Clojure/jenome/hg19.2bit"))
-
-(defn get-seq-header
+(defn decode-sequence-block-header
   [infile]
   (let [name-len-byte (get-bytes 1 infile)
         name-len (first (glio/decode byte-codec name-len-byte))
@@ -92,7 +92,7 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
 (defn rounding-up-divide [num denom]
   (math/ceil (/ num denom)))
 
-(defn partition-buffers
+(defn partition-buffer-sizes
   "Return buffer sizes required to cleanly read a total of n bytes no more than m at a time"
   [n m]
   (let [remainder (mod n m)]
@@ -100,29 +100,68 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
       (repeat (/ n m) m)
       (concat (repeat (dec (/ n m)) m) [remainder]))))
 
-(defn hg
-  ([]
-     (hg 100000))
-  ([blocksiz]
-     (let [infile (io/input-stream @genome-file)
-           seqcount (sequence-count infile)
-           index (doall (for [i (range seqcount)]
-                          (get-seq-header infile)))
-           seqnames (map first index)]
-       (doseq [seqn (range seqcount)]
-         (println "Decoding sequence" seqn)
-         (let [header (decode-sequence-fields infile)
-               dna-size (header :dna-size)
-               dna-bytes (rounding-up-divide dna-size 4)
-               read-sizes (partition-buffers dna-bytes blocksiz)]
-           (println header)
-           (doseq [bufsiz read-sizes]
-             (doall
-              (mapcat byte-to-base-pair (get-bytes bufsiz infile)))
-             (print ".")
-             (flush)))
-         (println)))))
+
+(defn sequence-index [infile seqcount]
+  (for [i (range seqcount)]
+    (decode-sequence-block-header infile)))
 
 
-(defn -main []
-  (print (time (hg 100000))))
+(defn decode-genome
+  "
+  Make a lazy sequence of base pairs from a given .2bit genome file
+  "
+  ([fname] (decode-genome 100000 fname))
+  ([blocksiz fname]
+     (apply concat
+             (let [infile (io/input-stream fname)
+                   seqcount (get-sequence-count-from-file-header infile)
+                   ;; Don't care about the index, but need to read the
+                   ;; bytes to get to the right position:
+                   _ (doall (sequence-index infile seqcount))]
+               (for [i (range seqcount)
+                     :let [header (decode-sequence-fields infile)
+                           dna-size (:dna-size header)
+                           dna-bytes (rounding-up-divide dna-size 4)
+                           read-sizes (partition-buffer-sizes dna-bytes blocksiz)]
+                     r read-sizes
+                     :let [inner (get-bytes r infile)]
+                     b inner]
+                 (byte-to-base-pair b))))))
+
+
+(defn str-with-commas [n]
+  (->> n
+       str
+       reverse
+       (partition-all 3)
+       (interpose \,)
+       flatten
+       reverse
+       (apply str)))
+
+
+(defn printing-counter
+  ([s] (printing-counter 1000N s))
+  ([ival s]
+     (loop [c 0
+            s s]
+       (if-not (seq s)
+         (println "\nTotal:" (str-with-commas c))
+         (do
+           (if (zero? (rem c ival)) (print (str "\r" (str-with-commas c))))
+           (recur (inc' c) (rest s)))))))
+
+
+(defn -main [& args]
+  (let [[filename & extra] args]
+    (cond
+     (seq extra) (println "unknown extra argument(s)" extra)
+     (nil? filename) (println "expected file name argument (2bit genome format)")
+     :else
+     (do
+       (println (->> (first args)
+                     decode-genome
+                     (take 1000)
+                     (map name)
+                     (apply str)))
+       (printing-counter (decode-genome (first args)))))))
