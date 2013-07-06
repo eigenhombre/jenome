@@ -1,74 +1,30 @@
 (ns jenome.core
+  "
+  Decode genome (human or otherwise) in 2-bit format as documented at:
+  http://genome.ucsc.edu/FAQ/FAQformat#format7
+  "
   (:gen-class)
   (:use midje.sweet
+        [clojure.math.numeric-tower :only [ceil]]
         [clojure.java.io :only [resource]]
-        [gloss.core :only [defcodec repeated]]
-        [gloss.io :only [decode decode-all]]))
+        [jenome.rafile :only [read-with-offset]]))
 
-"
-Decode genome (human or otherwise) in 2-bit format as documented at:
-http://genome.ucsc.edu/FAQ/FAQformat#format7
-"
-
-(defcodec u32 :uint32-le)
-(defcodec hdr-codec (repeat 4 u32))
-
-(defn get-bytes
-  [n inf]
-  (let [buf (byte-array n)]
-    (.read inf buf)
-    buf))
-
-(defn get-sequence-count-from-file-header
-  [infile]
-  (let [hdr-bytes (get-bytes 16 infile)
-        [signature ver cnt reserved] (decode hdr-codec hdr-bytes)]
-  (assert (= signature 0x1A412743))
-  (assert (= ver reserved 0))
-  cnt))
-
-(defn bytes-to-str
-  [bytes]
-  (apply str (map (comp char int) bytes)))
-
-(defn get32
-  [infile]
-  (decode u32 (get-bytes 4 infile)))
-
-(defn getwords
-  [n infile]
-  (decode-all u32 (get-bytes (* n 4) infile)))
-
-(defn decode-sequence-block-header
-  [infile]
-  (let [[name-len & _] (get-bytes 1 infile)
-        seqname (bytes-to-str (get-bytes name-len infile))
-        offset (get32 infile)]
-    [seqname offset]))
 
 (defn deltas [s]
   (map - (rest s) s))
 
-(defn monotonic? [s]
+
+(defn monotonic?
+  "
+  Is s monotonically increasing (no decreases)?
+  "
+  [s]
   (empty? (filter #(< % 0) (deltas s))))
 
-(defn decode-sequence-fields
-  [infile]
-  (let [dna-size (get32 infile)
-        n-block-count (get32 infile)
-        n-block-starts (getwords n-block-count infile)
-        n-block-sizes (getwords n-block-count infile)
-        mask-block-count (get32 infile)
-        mask-block-starts (getwords mask-block-count infile)
-        mask-block-sizes (getwords mask-block-count infile)
-        reserved (get32 infile)]
 
-    (assert (monotonic? n-block-starts))
-    (assert (monotonic? mask-block-starts))
-    (assert (= reserved 0))
-    {:dna-size dna-size
-     :n-block-count n-block-count
-     :mask-block-count mask-block-count}))
+(defn rounding-up-divide [num denom]
+  (ceil (/ num denom)))
+
 
 (defn nybs-to-bases [n]
   (case n
@@ -78,72 +34,175 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
     3 :G
     :default (throw (Exception. "Invalid nybble value!"))))
 
-(defn byte-to-base-pair [b]
+
+(defn byte-to-base-pairs [b]
   (let [shifts (range 6 -2 -2)
         nybs (map #(bit-and (bit-shift-right b %) 0x03) shifts)]
     (map nybs-to-bases nybs)))
 
-(defn rounding-up-divide [num denom]
-  (clojure.math.numeric-tower/ceil (/ num denom)))
 
-(defn partition-buffer-sizes
-  "Return buffer sizes required to cleanly read a total of n bytes no more than m at a time"
-  [n m]
-  (let [remainder (mod n m)]
-    (if (zero? remainder)
-      (repeat (/ n m) m)
-      (concat (repeat (dec (/ n m)) m) [remainder]))))
+(defn bytes-to-number [s]
+  (->> s
+       (map #(bit-and % 0xFF)) ; ...convert negative bytes to "unsigned"
+       reverse                 ; ...handle most significant bytes first
+                               ; shift and OR them together:
+       (reduce (fn [a b] (bit-or (bit-shift-left a 8) b)))))
 
 
-(defn sequence-index [infile seqcount]
-  (for [i (range seqcount)]
-    (decode-sequence-block-header infile)))
+(defn file-header [fname]
+  (let [[sig ver seqcnt resvd] (->> (read-with-offset fname 0 16)
+                                    (partition 4)
+                                    (map bytes-to-number))]
+    (assert (= sig 0x1A412743))
+    (assert (= ver 0))
+    (assert (= resvd 0))
+    seqcnt))
 
 
-(defn decode-genome
+(defn get32 [fname ofs]
+  (bytes-to-number (read-with-offset fname ofs 4)))
+
+
+(defn file-index [fname seqcnt]
+  (loop [i 0
+         ofs 16
+         ret []]
+    (if (< i seqcnt)
+      (let [[nlen] (read-with-offset fname ofs 1)
+            name (apply str (map char (read-with-offset fname (+ ofs 1) nlen)))
+            seq-offset (get32 fname (+ ofs 1 nlen))]
+        (recur (inc i) (+ ofs nlen 5) (conj ret [nlen name seq-offset])))
+      ret)))
+
+
+(defn skip [offset n] (+ offset (* 4 n)))
+
+
+(defn sequence-headers
   "
-  Make a lazy sequence of base pairs from a given .2bit genome file
+  Get sequence headers from .2bit file, as documented in
+  http://genome.ucsc.edu/FAQ/FAQformat#format7. Returns a list of maps
+  with details for each sequence.
   "
-  ([fname] (decode-genome 100000 fname))
-  ([blocksiz fname]
-     (apply concat
-             (let [infile (clojure.java.io/input-stream fname)
-                   seqcount (get-sequence-count-from-file-header infile)
-                   ;; Don't care about the index, but need to read the
-                   ;; bytes to get to the right position:
-                   _ (doall (sequence-index infile seqcount))]
-               (for [i (range seqcount)
-                     :let [header (decode-sequence-fields infile)
-                           dna-size (:dna-size header)
-                           dna-bytes (rounding-up-divide dna-size 4)
-                           read-sizes (partition-buffer-sizes dna-bytes blocksiz)]
-                     r read-sizes
-                     :let [inner (get-bytes r infile)]
-                     b inner]
-                 (byte-to-base-pair b))))))
+  [fname]
+  (let [seqcnt (file-header fname)
+        index (file-index fname seqcnt)]
+    (for [[nlen name offset] (file-index fname seqcnt)]
+      (let [dna-size (get32 fname offset)
+            offset (skip offset 1)
+            
+            n-block-count (get32 fname offset)
+            offset (skip offset 1)
+            
+            n-block-starts (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
+            offset (skip offset n-block-count)
+            
+            n-block-sizes  (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
+            offset (skip offset n-block-count)
+            
+            mask-block-count (get32 fname offset)
+            offset (skip offset 1)
+            
+            mask-block-starts (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
+            offset (skip offset mask-block-count)
+            
+            mask-block-sizes (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
+            offset (skip offset mask-block-count)
+            
+            reserved (get32 fname offset)
+            offset (skip offset 1)]
+        (assert (zero? reserved))
+        {:name name
+         :nlen nlen
+         :dna-size dna-size
+         :n-block-count n-block-count
+         :n-block-starts n-block-starts
+         :n-block-sizes n-block-sizes
+         :mask-block-starts mask-block-starts
+         :mask-block-sizes mask-block-sizes
+         :dna-offset offset}))))
 
 
-(defn str-with-commas [n]
-  (->> n
-       str
-       reverse
-       (partition-all 3)
-       (interpose \,)
-       flatten
-       reverse
+(defn get-buffer-starts-and-lengths 
+  "
+  Return buffer offsets (starting at ofs) required to cleanly read a
+  total of n bytes no more than m at a time
+  "
+  [ofs n m]
+  (loop [a ofs
+         len n
+         ret []]
+    (if (> a (+ m ofs))
+      ret
+      (recur (+ a n)
+             n
+             (conj ret [a (min len (- (+ m ofs) a))])))))
+
+
+(defn genome-sequence
+  "
+  Read a specific sequence, or all sequences in a file concatenated
+  together; return it as a lazy seq.
+  "
+  ([fname]
+     ;; (apply concat
+     ;;        (for [[ofs dna-len] (map (juxt :dna-offset :dna-size) (sequence-headers fname))]
+     ;;          (genome-sequence fname ofs dna-len)))
+     (let [sh (sequence-headers fname)]
+       (mapcat #(genome-sequence fname %1 %2)
+               (map :dna-offset sh)
+               (map :dna-size sh)))
+     )
+  ([fname ofs dna-len]
+     (take dna-len
+           (apply concat
+                  (let [byte-len (rounding-up-divide dna-len 4)
+                        starts-and-lengths (get-buffer-starts-and-lengths ofs 10000 byte-len)]
+                    (for [[offset length] starts-and-lengths
+                          :let [buf (read-with-offset fname offset length)]
+                          b buf]
+                      (byte-to-base-pairs b)))))))
+
+
+(defn genome-str
+  "
+  Convert e.g. :A :G :T :C to \"AGTC\"
+  "
+  [s]
+  (->> s
+       (map name)
        (apply str)))
 
 
-(defn printing-counter
-  ([s] (printing-counter 1000N s))
-  ([ival s]
-     (loop [c 0
-            s s]
-       (if-not (seq s)
-         (println "\nTotal:" (str-with-commas c))
-         (do
-           (if (zero? (rem c ival)) (print (str "\r" (str-with-commas c))))
-           (recur (inc' c) (rest s)))))))
+(defn write-seq 
+  "
+  Write a (potentially very long) sequence of lines to a text file
+  "
+  [filename s]
+  (with-open [wrt (clojure.java.io/writer filename)]
+    (doseq [x s]
+      (.write wrt (str x "\n")))))
+
+
+(defn print-seq
+  "
+  Write [lots of] lines to stdout
+  "
+  [s]
+  (doseq [x s]
+    (println x)))
+
+
+(defn get-yeast-seqmaps-in-order
+  "
+  Yeast chromosome sequences in 2-bit file are out of order; this puts
+  them sequential by chromosome number.
+  "
+  [fname]
+  (let [seqmaps (sequence-headers fname)]
+    (for [seqname (map str '(chrI chrII chrIII chrIV chrV chrVI chrVII chrVIII
+                                  chrIX chrX chrXI chrXII chrXIII chrXIV chrXV chrXVI chrM))]
+      (first (filter #(= seqname (:name %)) seqmaps)))))
 
 
 (defn -main [& args]
@@ -152,10 +211,74 @@ http://genome.ucsc.edu/FAQ/FAQformat#format7
      (seq extra) (println "unknown extra argument(s)" extra)
      (nil? filename) (println "expected file name argument (2bit genome format)")
      :else
-     (do
-       (println (->> (first args)
-                     decode-genome
-                     (take 1000)
-                     (map name)
-                     (apply str)))
-       (printing-counter (decode-genome (first args)))))))
+     (doseq [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
+                                     (sequence-headers filename))]
+       (println (format "%s ----- %d %d" name ofs dna-len))
+       (doseq [l (->> (genome-sequence filename ofs dna-len)
+                          (partition-all 60)
+                          (map genome-str))]
+         (println l)))
+
+     
+     ;; (print-seq
+     ;;  (apply concat
+     ;;         (for [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
+     ;;                                       (sequence-headers filename))]
+     ;;           (cons (format "%s ----- %d %d" name ofs dna-len)
+     ;;                 (->> (genome-sequence filename ofs dna-len)
+     ;;                      (partition-all 60)
+     ;;                      (map genome-str))))))
+     ;; (->> (first args)
+     ;;      genome-sequence
+
+     ;;      count
+          
+     ;;      ;; (partition-all 60)
+     ;;      ;; (map genome-str)
+     ;;      ;; print-seq
+
+          )))
+
+
+(comment
+
+  (def human "/Users/jacobsen/Programming/Lisp/Clojure/jenome/hg19.2bit")
+  (def yeast "/Users/jacobsen/Programming/Lisp/Clojure/jenome/resources/sacCer3.2bit")
+  (clojure.pprint/pprint (sequence-headers human))
+  (clojure.pprint/pprint (sequence-headers yeast))
+  (monotonic? (map :dna-offset (sequence-headers human))) ;;=> true
+
+  ;; Get the names of the sequences (mostly chromosomes)
+  (map :name (sequence-headers yeast))
+
+  ;; Just get the first 100 base pairs:
+  (->> yeast
+       genome-sequence
+       (take 100)
+       genome-str)
+  
+  ;; Simple write of all sequences together in the order they are in the file:
+  
+  (write-seq "/tmp/myyeast"
+             (->> yeast
+                  genome-sequence
+                  (partition-all 60)
+                  (map genome-str)))
+
+  ;; Write a file comparable to downloaded FASTA file (use chromosome order):
+  (write-seq "/tmp/myyeast"
+             (apply concat
+                    (for [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
+                                                  (get-yeast-seqmaps-in-order yeast))]
+                      (cons (format "%s ----- %d %d" name ofs dna-len)
+                            (->> (genome-sequence yeast ofs dna-len)
+                                 (partition-all 60)
+                                 (map genome-str))))))
+
+  ;; Relative frequencies of base pairs:
+  (->> yeast
+       genome-sequence
+       frequencies)
+
+  )
+
