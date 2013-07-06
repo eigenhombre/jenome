@@ -16,6 +16,8 @@ Then,
 
     lein run <filename.2bit>
 
+See also the commented-out example expressions at the bottom of `src/jenome/core.clj`.
+
 ### License
 
 Copyright (C) 2012-2013 John Jacobsen
