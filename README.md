@@ -8,9 +8,11 @@ Code for playing around with genome data, human or otherwise.
 
 ### Process a .2bit genome file (convert to FASTA-like plain text in stdout):
 
-Download genome code from e.g.:
+First, download some `.2bit` genome code from e.g.
+http://hgdownload.cse.ucsc.edu/downloads.html. Or, use
+`resources/sacCer3.2bit`.
 
-    http://hgdownload.cse.ucsc.edu/downloads.html
+Then,
 
     lein run <filename.2bit>
 
