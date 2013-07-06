@@ -174,36 +174,6 @@
        (apply str)))
 
 
-(defn write-seq 
-  "
-  Write a (potentially very long) sequence of lines to a text file
-  "
-  [filename s]
-  (with-open [wrt (clojure.java.io/writer filename)]
-    (doseq [x s]
-      (.write wrt (str x "\n")))))
-
-
-(defn print-seq
-  "
-  Write [lots of] lines to stdout
-  "
-  [s]
-  (doseq [x s]
-    (println x)))
-
-
-(defn get-yeast-seqmaps-in-order
-  "
-  Yeast chromosome sequences in 2-bit file are out of order; this puts
-  them sequential by chromosome number.
-  "
-  [fname]
-  (let [seqmaps (sequence-headers fname)]
-    (for [seqname (map str '(chrI chrII chrIII chrIV chrV chrVI chrVII chrVIII
-                                  chrIX chrX chrXI chrXII chrXIII chrXIV chrXV chrXVI chrM))]
-      (first (filter #(= seqname (:name %)) seqmaps)))))
-
 
 (defn -main [& args]
   (let [[filename & extra] args]
@@ -217,27 +187,7 @@
        (doseq [l (->> (genome-sequence filename ofs dna-len)
                           (partition-all 60)
                           (map genome-str))]
-         (println l)))
-
-     
-     ;; (print-seq
-     ;;  (apply concat
-     ;;         (for [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
-     ;;                                       (sequence-headers filename))]
-     ;;           (cons (format "%s ----- %d %d" name ofs dna-len)
-     ;;                 (->> (genome-sequence filename ofs dna-len)
-     ;;                      (partition-all 60)
-     ;;                      (map genome-str))))))
-     ;; (->> (first args)
-     ;;      genome-sequence
-
-     ;;      count
-          
-     ;;      ;; (partition-all 60)
-     ;;      ;; (map genome-str)
-     ;;      ;; print-seq
-
-          )))
+         (println l))))))
 
 
 (comment
@@ -258,14 +208,35 @@
        genome-str)
   
   ;; Simple write of all sequences together in the order they are in the file:
-  
+
+  (defn write-seq 
+    "
+    Write a (potentially very long) sequence of lines to a text file
+    "
+    [filename s]
+    (with-open [wrt (clojure.java.io/writer filename)]
+      (doseq [x s]
+        (.write wrt (str x "\n")))))
+
   (write-seq "/tmp/myyeast"
              (->> yeast
                   genome-sequence
                   (partition-all 60)
                   (map genome-str)))
 
-  ;; Write a file comparable to downloaded FASTA file (use chromosome order):
+  ;; Write a file comparable to downloaded FASTA file (use chromosome
+  ;; order):
+  (defn get-yeast-seqmaps-in-order
+    "
+    Yeast chromosome sequences in 2-bit file are out of order; this puts
+    them sequential by chromosome number.
+    "
+    [fname]
+    (let [seqmaps (sequence-headers fname)]
+      (for [seqname (map str '(chrI chrII chrIII chrIV chrV chrVI chrVII chrVIII
+                                    chrIX chrX chrXI chrXII chrXIII chrXIV chrXV chrXVI chrM))]
+        (first (filter #(= seqname (:name %)) seqmaps)))))
+  
   (write-seq "/tmp/myyeast"
              (apply concat
                     (for [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
@@ -275,10 +246,34 @@
                                  (partition-all 60)
                                  (map genome-str))))))
 
+  ;; How many base pairs?
+  (->> yeast
+       genome-sequence
+       count)
+
+  ;; How many base pairs?
+  (with-out-str
+    (time
+     (->> human
+          genome-sequence
+          (take (* 1000 1000 1))
+          count)))
+
+  
   ;; Relative frequencies of base pairs:
   (->> yeast
        genome-sequence
        frequencies)
 
-  )
+  ;; In case we need it, here's an infinite random genome:
+  (defn infinite-sim-genome []
+    (repeatedly #(rand-nth [:A :G :C :T])))
+
+  ;; Use pmap for something -- uses about 360% of my 4-core MBP
+  (->> human
+       genome-sequence
+       (partition-all 100000)
+       (pmap count)
+       (apply +))
+)
 
