@@ -78,7 +78,12 @@
 (defn skip [offset n] (+ offset (* 4 n)))
 
 
-(defn get-block [fname offset n]
+(defn getblk
+  "
+  Get a block of n 32-bit unsigned ints from fname starting at offset.
+  n can be 1 (in which case a collection of one element is returned)
+  "
+  [fname offset n]
   (let [ret (map #(get32 fname (+ offset (* 4 %))) (range n))
         offset (skip offset n)]
     [ret offset]))
@@ -91,18 +96,16 @@
   with details for each sequence.
   "
   [fname]
-  (let [seqcnt (file-header fname)
-        index (file-index fname seqcnt)]
-    (for [[nlen name offset] (file-index fname seqcnt)]
-      (let [[[dna-size]         offset] (get-block fname offset 1)
-            [[n-block-count]    offset] (get-block fname offset 1)
-            [n-block-starts     offset] (get-block fname offset n-block-count)
-            [n-block-sizes      offset] (get-block fname offset n-block-count)
-            [[mask-block-count] offset] (get-block fname offset 1)
-            [mask-block-starts  offset] (get-block fname offset mask-block-count)
-            [mask-block-sizes   offset] (get-block fname offset mask-block-count)
-            [[reserved]         offset] (get-block fname offset 1)
-            ]
+  (let [seqcnt (file-header fname)]
+    (for [[nlen name ofs] (file-index fname seqcnt)]
+      (let [[[dna-size]         ofs] (getblk fname ofs 1)
+            [[n-block-count]    ofs] (getblk fname ofs 1)
+            [n-block-starts     ofs] (getblk fname ofs n-block-count)
+            [n-block-sizes      ofs] (getblk fname ofs n-block-count)
+            [[mask-block-count] ofs] (getblk fname ofs 1)
+            [mask-block-starts  ofs] (getblk fname ofs mask-block-count)
+            [mask-block-sizes   ofs] (getblk fname ofs mask-block-count)
+            [[reserved]         ofs] (getblk fname ofs 1)]
         (assert (zero? reserved))
         {:name name
          :nlen nlen
@@ -112,13 +115,13 @@
          :n-block-sizes n-block-sizes
          :mask-block-starts mask-block-starts
          :mask-block-sizes mask-block-sizes
-         :dna-offset offset}))))
+         :dna-offset ofs}))))
 
 
 (defn get-buffer-starts-and-lengths 
   "
   Return buffer offsets (starting at ofs) required to cleanly read a
-  total of n bytes no more than m at a time
+  total of m bytes no more than n at a time
   "
   [ofs n m]
   (loop [a ofs
@@ -137,14 +140,10 @@
   together; return it as a lazy seq.
   "
   ([fname]
-     ;; (apply concat
-     ;;        (for [[ofs dna-len] (map (juxt :dna-offset :dna-size) (sequence-headers fname))]
-     ;;          (genome-sequence fname ofs dna-len)))
      (let [sh (sequence-headers fname)]
        (mapcat #(genome-sequence fname %1 %2)
                (map :dna-offset sh)
-               (map :dna-size sh)))
-     )
+               (map :dna-size sh))))
   ([fname ofs dna-len]
      (take dna-len
            (apply concat

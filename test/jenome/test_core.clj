@@ -47,3 +47,8 @@
          (monotonic? (map :dna-offset hdrs)) => true
          (map :n-block-sizes hdrs) => (repeat 17 ())
          (map :mask-block-sizes hdrs) => (repeat 17 ())))
+
+(facts "about determining read blocks"
+       (get-buffer-starts-and-lengths 0 1000 1000) => [[0 1000]]
+       (get-buffer-starts-and-lengths 0 1000 1001) => [[0 1000] [1000 1]]
+       (get-buffer-starts-and-lengths 100 200 512) => [[100 200] [300 200] [500 112]])
