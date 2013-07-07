@@ -78,6 +78,12 @@
 (defn skip [offset n] (+ offset (* 4 n)))
 
 
+(defn get-block [fname offset n]
+  (let [ret (map #(get32 fname (+ offset (* 4 %))) (range n))
+        offset (skip offset n)]
+    [ret offset]))
+
+
 (defn sequence-headers
   "
   Get sequence headers from .2bit file, as documented in
@@ -88,29 +94,15 @@
   (let [seqcnt (file-header fname)
         index (file-index fname seqcnt)]
     (for [[nlen name offset] (file-index fname seqcnt)]
-      (let [dna-size (get32 fname offset)
-            offset (skip offset 1)
-            
-            n-block-count (get32 fname offset)
-            offset (skip offset 1)
-            
-            n-block-starts (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
-            offset (skip offset n-block-count)
-            
-            n-block-sizes  (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
-            offset (skip offset n-block-count)
-            
-            mask-block-count (get32 fname offset)
-            offset (skip offset 1)
-            
-            mask-block-starts (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
-            offset (skip offset mask-block-count)
-            
-            mask-block-sizes (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
-            offset (skip offset mask-block-count)
-            
-            reserved (get32 fname offset)
-            offset (skip offset 1)]
+      (let [[[dna-size]         offset] (get-block fname offset 1)
+            [[n-block-count]    offset] (get-block fname offset 1)
+            [n-block-starts     offset] (get-block fname offset n-block-count)
+            [n-block-sizes      offset] (get-block fname offset n-block-count)
+            [[mask-block-count] offset] (get-block fname offset 1)
+            [mask-block-starts  offset] (get-block fname offset mask-block-count)
+            [mask-block-sizes   offset] (get-block fname offset mask-block-count)
+            [[reserved]         offset] (get-block fname offset 1)
+            ]
         (assert (zero? reserved))
         {:name name
          :nlen nlen
