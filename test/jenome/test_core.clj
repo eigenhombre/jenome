@@ -37,3 +37,13 @@
        (yeast-section 1 12) => "CACACCACAC"
        (yeast-section 10000 10011) => "GAATGAATCG"
        (yeast-section 100000 100011) => "GGTATTATTT")
+
+
+(facts "about yeast metadata"
+       (let [hdrs(->> (resource "sacCer3.2bit")
+                      as-file
+                      sequence-headers)]
+         (count hdrs) => 17
+         (monotonic? (map :dna-offset hdrs)) => true
+         (map :n-block-sizes hdrs) => (repeat 17 ())
+         (map :mask-block-sizes hdrs) => (repeat 17 ())))

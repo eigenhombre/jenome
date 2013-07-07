@@ -269,11 +269,18 @@
   (defn infinite-sim-genome []
     (repeatedly #(rand-nth [:A :G :C :T])))
 
-  ;; Use pmap for something -- uses about 360% of my 4-core MBP
+  ;; A serial counter - uses 140% of my 4-core MBP, then blows heap:
+  (->> human
+       genome-sequence
+       (apply count))
+
+  ;; Use pmap and partition-all instead -- uses about 360% of my 4-core MBP
   (->> human
        genome-sequence
        (partition-all 100000)
        (pmap count)
        (apply +))
+
+
 )
 
