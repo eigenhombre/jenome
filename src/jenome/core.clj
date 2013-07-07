@@ -6,7 +6,7 @@
   (:gen-class)
   (:use midje.sweet
         [clojure.math.numeric-tower :only [ceil]]
-        [clojure.java.io :only [resource]]
+        [clojure.java.io :only [resource as-file]]
         [jenome.rafile :only [read-with-offset]]))
 
 
@@ -78,6 +78,12 @@
 (defn skip [offset n] (+ offset (* 4 n)))
 
 
+(defmacro stepthrough [offset bindings & body]
+  `(let [ofs# ~offset
+         ~@(apply concat (for [[a# aa# b# bb#] (partition 4 bindings)]
+                           [a# aa# b# bb#]))] ~@body))
+
+
 (defn sequence-headers
   "
   Get sequence headers from .2bit file, as documented in
@@ -88,29 +94,29 @@
   (let [seqcnt (file-header fname)
         index (file-index fname seqcnt)]
     (for [[nlen name offset] (file-index fname seqcnt)]
-      (let [dna-size (get32 fname offset)
-            offset (skip offset 1)
-            
-            n-block-count (get32 fname offset)
-            offset (skip offset 1)
-            
-            n-block-starts (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
-            offset (skip offset n-block-count)
-            
-            n-block-sizes  (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
-            offset (skip offset n-block-count)
-            
-            mask-block-count (get32 fname offset)
-            offset (skip offset 1)
-            
-            mask-block-starts (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
-            offset (skip offset mask-block-count)
-            
-            mask-block-sizes (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
-            offset (skip offset mask-block-count)
-            
-            reserved (get32 fname offset)
-            offset (skip offset 1)]
+      (stepthrough offset [dna-size (get32 fname offset)
+                           offset (skip offset 1)
+                           
+                           n-block-count (get32 fname offset)
+                           offset (skip offset 1)
+                           
+                           n-block-starts (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
+                           offset (skip offset n-block-count)
+                           
+                           n-block-sizes  (map #(get32 fname (+ offset (* 4 %))) (range n-block-count))
+                           offset (skip offset n-block-count)
+                           
+                           mask-block-count (get32 fname offset)
+                           offset (skip offset 1)
+                           
+                           mask-block-starts (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
+                           offset (skip offset mask-block-count)
+                           
+                           mask-block-sizes (map #(get32 fname (+ offset (* 4 %))) (range mask-block-count))
+                           offset (skip offset mask-block-count)
+                           
+                           reserved (get32 fname offset)
+                           offset (skip offset 1)]
         (assert (zero? reserved))
         {:name name
          :nlen nlen
@@ -282,5 +288,13 @@
        (apply +))
 
 
+  (def yeast
+    (as-file (resource "sacCer3.2bit")))
+
+  (clojure.pprint/pprint
+   (let [seqcnt (file-header yeast)]
+     (file-index yeast seqcnt)))
+
 )
+
 
