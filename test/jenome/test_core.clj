@@ -52,3 +52,11 @@
        (get-buffer-starts-and-lengths 0 1000 1000) => [[0 1000]]
        (get-buffer-starts-and-lengths 0 1000 1001) => [[0 1000] [1000 1]]
        (get-buffer-starts-and-lengths 100 200 512) => [[100 200] [300 200] [500 112]])
+
+;;
+;; (def human "/Users/jacobsen/Programming/Lisp/Clojure/jenome/hg19.2bit")
+;; (facts "about human genome"
+;;        (.exists (as-file human)) => true
+;;        (file-header human) => 93
+;;        (println 666666666666) => nil
+;;        ((juxt :n-block-count :mask-block-count) (first (sequence-headers human))) => 1)
