@@ -45,13 +45,29 @@
                       sequence-headers)]
          (count hdrs) => 17
          (monotonic? (map :dna-offset hdrs)) => true
-         (map :n-block-sizes hdrs) => (repeat 17 ())
-         (map :mask-block-sizes hdrs) => (repeat 17 ())))
+         (map :mask-block-count hdrs) => (repeat 17 0)
+         (map :n-block-sizes hdrs) => (repeat 17 ())))
+
 
 (facts "about determining read blocks"
        (get-buffer-starts-and-lengths 0 1000 1000) => [[0 1000]]
        (get-buffer-starts-and-lengths 0 1000 1001) => [[0 1000] [1000 1]]
        (get-buffer-starts-and-lengths 100 200 512) => [[100 200] [300 200] [500 112]])
+
+
+(facts "about determining if a base pair position is inside an N block"
+       (let [n-block-starts [0 1000]
+             n-block-lengths [3 1]]
+         (is-in-an-n-block   -1 n-block-starts n-block-lengths) => falsey
+         (is-in-an-n-block    0 n-block-starts n-block-lengths) => truthy
+         (is-in-an-n-block    1 n-block-starts n-block-lengths) => truthy
+         (is-in-an-n-block    2 n-block-starts n-block-lengths) => truthy
+         (is-in-an-n-block    3 n-block-starts n-block-lengths) => falsey
+         (is-in-an-n-block  999 n-block-starts n-block-lengths) => falsey
+         (is-in-an-n-block 1000 n-block-starts n-block-lengths) => truthy
+         (is-in-an-n-block 1001 n-block-starts n-block-lengths) => falsey))
+
+
 
 ;;
 ;; (def human "/Users/jacobsen/Programming/Lisp/Clojure/jenome/hg19.2bit")

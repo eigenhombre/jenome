@@ -135,25 +135,50 @@
              (conj ret [a (min len (- (+ m ofs) a))])))))
 
 
+(defn is-in-an-n-block
+  ([x hdr]
+     (let [{:keys [n-block-starts n-block-sizes]} hdr]
+       (is-in-an-n-block x n-block-starts n-block-sizes)))
+  ([x n-block-starts n-block-lengths]
+     (let [pairs (map (fn [a b] [a (+ a b)])
+                      n-block-starts n-block-lengths)]
+       (some (fn [[a b]] (< (dec a) x b)) pairs))))
+
+
+(defn my-mapcat
+  "
+  http://clojurian.blogspot.com/2012/11/beware-of-mapcat.html
+  "
+  [f coll]
+  (lazy-seq
+   (if (not-empty coll)
+     (concat
+      (f (first coll))
+      (my-mapcat f (rest coll))))))
+
 (defn genome-sequence
   "
   Read a specific sequence, or all sequences in a file concatenated
   together; return it as a lazy seq.
   "
   ([fname]
-     (let [sh (sequence-headers fname)]
-       (mapcat #(genome-sequence fname %1 %2)
-               (map :dna-offset sh)
-               (map :dna-size sh))))
-  ([fname ofs dna-len]
-     (take dna-len
-           (apply concat
-                  (let [byte-len (rounding-up-divide dna-len 4)
-                        starts-and-lengths (get-buffer-starts-and-lengths ofs 10000 byte-len)]
-                    (for [[offset length] starts-and-lengths
-                          :let [buf (read-with-offset fname offset length)]
-                          b buf]
-                      (byte-to-base-pairs b)))))))
+     (let [sh (sequence-headers fname)
+           base-offset (-> sh first :dna-offset)]
+       (my-mapcat (partial genome-sequence fname base-offset) sh)))
+  ([fname base-offset hdr]
+     (let [ofs (:dna-offset hdr)
+           dna-len (:dna-size hdr)
+           byte-len (rounding-up-divide dna-len 4)
+           starts-and-lengths (get-buffer-starts-and-lengths ofs 10000 byte-len)]
+       (->> (for [[offset length] starts-and-lengths
+                  :let [buf (read-with-offset fname offset length)]
+                  b buf]
+              (byte-to-base-pairs b))
+            (apply concat)
+            (take dna-len)
+            (map-indexed (fn [i x] (if (is-in-an-n-block (+' i (- ofs base-offset)) hdr)
+                                    :N
+                                    x)))))))
 
 
 (defn genome-str
@@ -259,12 +284,12 @@
        frequencies)
 
   ;; In case we need it, here's an infinite random genome:
-  (defn infinite-sim-genome []
+  (defn randgenome []
     (repeatedly #(rand-nth [:A :G :C :T])))
-
-  (->> yeast
-       genome-sequence
-       count)
+  
+  (time (->> yeast
+             genome-sequence
+             count))
   
   ;; Use pmap and partition-all instead -- uses about 360% of my
   ;; 4-core MBP, same as count by itself
@@ -299,11 +324,14 @@
   
   (.mkdir (clojure.java.io/file "/tmp/decoded"))
   
-  (doseq [{:keys [name dna-offset dna-size]} (sequence-headers yeast)]
+  (let [h1 (first (sequence-headers human))
+        h2 (second (sequence-headers human))
+        base-offset (:dna-offset h1)
+        {:keys [name dna-offset dna-size]} h2]
     (let [fname (str "/tmp/decoded/" name ".fa")]
       (write-seq fname
                  (cons (str ">" name)
-                       (->> (genome-sequence yeast dna-offset dna-size)
+                       (->> (genome-sequence human base-offset hdr)
                             (partition-all 50)
                             (map genome-str))))))
 
@@ -345,11 +373,48 @@
    (map-indexed vector)
    (take 100))
 
+  (->>
+   human
+   genome-sequence
+   (map name)
+   (drop 10000)
+   (take 1000)
+   (apply str))
+
+  (->>
+   human
+   genome-sequence
+   (take 1000)
+   (partition-by identity)
+   (map (partial map name))
+   (map (partial apply str)))
+  
+  (split-with identity (ran))
   ;; Approach for proceeding:
   ;; require genome-sequence to take an argument which is the entire
   ;; header structure.  have it use that to find the Ns.
 
   (float (/ 3137161264 12157105))
+
+  (->> human
+       sequence-headers
+       (map (juxt :name :dna-size :n-block-count))
+       clojure.pprint/pprint)
+
+  (->> human
+       sequence-headers
+       first
+       ((juxt :n-block-starts :n-block-sizes))
+       (apply interleave)
+       (partition 2)
+       (map vec)
+       clojure.pprint/pprint)
+
+  (->> (range (* 1000 1000 1000 3))
+       (partition (* 1000 1000))
+       (pmap count)
+       (apply +))
+
   )
 
 
