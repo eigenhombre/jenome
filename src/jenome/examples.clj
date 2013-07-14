@@ -13,11 +13,20 @@
   tib: Time in the Background
   Run body in background, printing body and showing result when it's done.
   "
-  [& body]
-  `(future (let [code# '(~@body)
-                 junk# (println "Starting" code#)
-                 result# (time ~@body)]
-             (println code# "\n" result#))))
+  [expr]
+  `(future (let [code# '~expr
+                 start# (. System (nanoTime))]
+             (println "Starting" code#)
+             (let [result# ~expr
+                   end# (. System (nanoTime))
+                   dursec# (/ (double (- end# start#)) (* 1000 1000 1000.0))]
+               (println (format "Code: %s\nTime: %.6f seconds\nResult: %s"
+                                code#
+                                dursec#
+                                result#))
+               result#))))
+
+(tib (count (range (* 1000 1000 1000 3))))
 
 
 (defn count'
@@ -41,15 +50,15 @@
       (.write wrt (str x "\n")))))
 
 
-(defn pseq
+(defmacro pseq
   "
-  Apply func in parallel to all sequences specified in the index of fname.
+  Apply threading of funcs in parallel through all sequences specified
+  in the index of fname.
   "
-  [fname func]
-     (let [hdrs (sequence-headers fname)
-           map-fn (fn [hdr] (->> (genome-sequence fname hdr)
-                                func))]
-       (pmap map-fn hdrs)))
+  [fname & funcs]
+  `(pmap #(->> (genome-sequence ~fname %)
+               ~@funcs)
+         (sequence-headers ~fname)))
 
 
 (defn randgenome
@@ -74,9 +83,9 @@
        genome-str)  
 
   ;; How many base pairs?
-  (->> yeast
-       genome-sequence
-       count')
+  (tib (->> yeast
+            genome-sequence
+            count'))
 
   ;; Do it in parallel:
   (tib (apply + (pseq yeast count')))
@@ -88,9 +97,9 @@
 
   
   ;; Relative frequencies of base pairs:
-  (->> yeast
-       genome-sequence
-       frequencies)
+  (tib (->> yeast
+            genome-sequence
+            frequencies))
 
   
   (time (->> yeast
@@ -166,37 +175,10 @@
        (partition 2)
        (map vec))
 
-  (->>
-   human
-   genome-sequence
-   (map-indexed vector)
-   (take 100))
-
-  (->>
-   human
-   genome-sequence
-   (map name)
-   (drop 10000)
-   (take 1000)
-   (apply str))
-
-  (->>
-   human
-   genome-sequence
-   (take 1000)
-   (partition-by identity)
-   (map (partial map name))
-   (map (partial apply str)))
-   
 
   (->> yeast
        genome-sequence
        frequencies)
-
-  (->> human
-       genome-sequence
-       (drop 10000)
-       (take 100))
 
   (tib (->> yeast
             genome-sequence
@@ -237,4 +219,8 @@
                                frequencies))]
      (apply (partial merge-with +) (pmap freq-fn hdrs))))
 
+
+  
+  (def m {:N 239850802, :T 856055361, :A 854963149, :C 592966724, :G 593325228})
+  (float  (/ (:N m) (apply + (vals m))))
   )

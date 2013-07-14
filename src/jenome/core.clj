@@ -145,8 +145,9 @@
        (some (fn [[a b]] (< (dec a) x b)) pairs))))
 
 
-(defn my-mapcat
+(defn lazy-mapcat
   "
+  Fully lazy version of mapcat.  See:
   http://clojurian.blogspot.com/2012/11/beware-of-mapcat.html
   "
   [f coll]
@@ -154,7 +155,8 @@
    (if (not-empty coll)
      (concat
       (f (first coll))
-      (my-mapcat f (rest coll))))))
+      (lazy-mapcat f (rest coll))))))
+
 
 (defn genome-sequence
   "
@@ -163,7 +165,7 @@
   "
   ([fname]
      (let [sh (sequence-headers fname)]
-       (my-mapcat (partial genome-sequence fname) sh)))
+       (lazy-mapcat (partial genome-sequence fname) sh)))
   ([fname hdr]
      (let [ofs (:dna-offset hdr)
            dna-len (:dna-size hdr)
