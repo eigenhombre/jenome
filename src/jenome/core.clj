@@ -162,21 +162,19 @@
   together; return it as a lazy seq.
   "
   ([fname]
-     (let [sh (sequence-headers fname)
-           base-offset (-> sh first :dna-offset)]
-       (my-mapcat (partial genome-sequence fname base-offset) sh)))
-  ([fname base-offset hdr]
+     (let [sh (sequence-headers fname)]
+       (my-mapcat (partial genome-sequence fname) sh)))
+  ([fname hdr]
      (let [ofs (:dna-offset hdr)
            dna-len (:dna-size hdr)
            byte-len (rounding-up-divide dna-len 4)
            starts-and-lengths (get-buffer-starts-and-lengths ofs 10000 byte-len)]
        (->> (for [[offset length] starts-and-lengths
-                  :let [buf (read-with-offset fname offset length)]
-                  b buf]
+                  b (read-with-offset fname offset length)]
               (byte-to-base-pairs b))
             (apply concat)
             (take dna-len)
-            (map-indexed (fn [i x] (if (is-in-an-n-block (+' i (- ofs base-offset)) hdr)
+            (map-indexed (fn [i x] (if (is-in-an-n-block i hdr)
                                     :N
                                     x)))))))
 
@@ -323,17 +321,16 @@
 
   
   (.mkdir (clojure.java.io/file "/tmp/decoded"))
-  
-  (let [h1 (first (sequence-headers human))
-        h2 (second (sequence-headers human))
-        base-offset (:dna-offset h1)
-        {:keys [name dna-offset dna-size]} h2]
-    (let [fname (str "/tmp/decoded/" name ".fa")]
-      (write-seq fname
-                 (cons (str ">" name)
-                       (->> (genome-sequence human base-offset hdr)
-                            (partition-all 50)
-                            (map genome-str))))))
+
+  (tib
+   (let [h2 (second (sequence-headers human))
+         {:keys [name dna-offset dna-size]} h2]
+     (let [fname (str "/tmp/decoded/" name ".fa")]
+       (write-seq fname
+                  (cons (str ">" name)
+                        (->> (genome-sequence human h2)
+                             (partition-all 50)
+                             (map genome-str)))))))
 
 
   (->>
@@ -415,6 +412,66 @@
        (pmap count)
        (apply +))
 
+  (->> yeast
+       genome-sequence
+       frequencies)
+
+  
+  (defmacro tib
+    "
+    tib: Time in the Background
+    Run body in background, printing body and showing result when it's done.
+    "
+    [& body]
+    `(future (let [code# '(~@body)
+                   junk# (println "Starting" code#)
+                   result# (time ~@body)]
+               (println code# "\n" result#))))
+
+  (sequence-headers yeast)
+
+  (->> human
+       genome-sequence
+       (take 100))
+  
+  (tib (->> yeast
+            genome-sequence
+            (partition-by identity)
+            (map count)
+            frequencies
+            (into (sorted-map))
+            clojure.pprint/pprint))
+
+  (tib (->> human
+            genome-sequence
+            (take (* 1000 1000 10))
+            (remove #{:N})
+            (partition-by identity)
+            (map count)
+            frequencies
+            (into (sorted-map))
+            clojure.pprint/pprint))
+
+  (tib
+   (let [fname human
+         h2 (second (sequence-headers fname))
+         {:keys [name dna-offset dna-size]} h2]
+     (->> (genome-sequence fname h2)
+          (take 40000)
+          frequencies)))
+
+
+  ;; Get frequencies for all sequences in parallel
+  (tib
+   (let [fname human
+         hdrs (sequence-headers fname)
+         freq-fn (fn [hdr] (->> (genome-sequence fname hdr)
+                               (take 100000)
+                               frequencies))]
+     (apply (partial merge-with +) (pmap freq-fn hdrs))))
+
+
   )
+  
 
 
