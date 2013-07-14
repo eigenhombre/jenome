@@ -187,21 +187,22 @@
             frequencies
             (into (sorted-map))))
 
+  
   (tib (apply (partial merge-with +)
-              (pseq yeast (fn [s] (->> s
-                                      (partition-by identity)
-                                      (map count)
-                                      frequencies
-                                      (into (sorted-map)))))))
+              (pseq yeast
+                    (partition-by identity)
+                    (map count)
+                    frequencies
+                    (into (sorted-map)))))
 
   (tib (apply (partial merge-with +)
-              (pseq human (fn [s] (->> s
-                                      (remove #{:N})
-                                      (partition-by identity)
-                                      (map count)
-                                      frequencies
-                                      (into (sorted-map)))))))
-
+              (pseq human
+                    (remove #{:N})
+                    (partition-by identity)
+                    (map count)
+                    frequencies
+                    (into (sorted-map)))))
+  
   (tib
    (->> (randgenome)
         (take 1000000)
@@ -223,4 +224,13 @@
   
   (def m {:N 239850802, :T 856055361, :A 854963149, :C 592966724, :G 593325228})
   (float  (/ (:N m) (apply + (vals m))))
+
+  
+  (tib (->> yeast
+            genome-sequence
+            frequencies))
+
+  (tib (apply (partial merge-with +)
+              (pseq yeast frequencies)))
+
   )
