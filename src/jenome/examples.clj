@@ -46,10 +46,18 @@
   Apply func in parallel to all sequences specified in the index of fname.
   "
   [fname func]
-  (let [hdrs (sequence-headers fname)
-        map-fn (fn [hdr] (->> (genome-sequence fname hdr)
-                             func))]
-    (pmap map-fn hdrs)))
+     (let [hdrs (sequence-headers fname)
+           map-fn (fn [hdr] (->> (genome-sequence fname hdr)
+                                func))]
+       (pmap map-fn hdrs)))
+
+
+(defn randgenome
+    "
+    For testing, in case we need a random 'null-hypothesis' genome:
+    "
+    []
+    (repeatedly #(rand-nth [:A :G :C :T])))
 
 
 (comment
@@ -68,19 +76,15 @@
   ;; How many base pairs?
   (->> yeast
        genome-sequence
-       count)
-  
-  (tib (apply + (pseq yeast count)))
-  (tib (apply + (pseq yeast count')))
+       count')
 
+  ;; Do it in parallel:
+  (tib (apply + (pseq yeast count')))
   
   ;; How many base pairs?
-  (with-out-str
-    (time
-     (->> human
-          genome-sequence
-          (take (* 1000 1000 1))
-          count)))
+  (tib (apply + (pseq human (fn [s] (->> s
+                                        (take (* 1000))
+                                        count')))))
 
   
   ;; Relative frequencies of base pairs:
@@ -88,9 +92,6 @@
        genome-sequence
        frequencies)
 
-  ;; In case we need it, here's an infinite random genome:
-  (defn randgenome []
-    (repeatedly #(rand-nth [:A :G :C :T])))
   
   (time (->> yeast
              genome-sequence
@@ -186,39 +187,11 @@
    (partition-by identity)
    (map (partial map name))
    (map (partial apply str)))
-  
-  (split-with identity (ran))
-  ;; Approach for proceeding:
-  ;; require genome-sequence to take an argument which is the entire
-  ;; header structure.  have it use that to find the Ns.
-
-  (float (/ 3137161264 12157105))
-
-  (->> human
-       sequence-headers
-       (map (juxt :name :dna-size :n-block-count))
-       clojure.pprint/pprint)
-
-  (->> human
-       sequence-headers
-       first
-       ((juxt :n-block-starts :n-block-sizes))
-       (apply interleave)
-       (partition 2)
-       (map vec)
-       clojure.pprint/pprint)
-
-  (->> (range (* 1000 1000 1000 3))
-       (partition (* 1000 1000))
-       (pmap count)
-       (apply +))
+   
 
   (->> yeast
        genome-sequence
        frequencies)
-
-  
-
 
   (->> human
        genome-sequence
@@ -230,28 +203,31 @@
             (partition-by identity)
             (map count)
             frequencies
-            (into (sorted-map))
-            clojure.pprint/pprint))
+            (into (sorted-map))))
 
-  (tib (->> human
-            genome-sequence
-            (take (* 1000 1000 10))
-            (remove #{:N})
-            (partition-by identity)
-            (map count)
-            frequencies
-            (into (sorted-map))
-            clojure.pprint/pprint))
+  (tib (apply (partial merge-with +)
+              (pseq yeast (fn [s] (->> s
+                                      (partition-by identity)
+                                      (map count)
+                                      frequencies
+                                      (into (sorted-map)))))))
+
+  (tib (apply (partial merge-with +)
+              (pseq human (fn [s] (->> s
+                                      (remove #{:N})
+                                      (partition-by identity)
+                                      (map count)
+                                      frequencies
+                                      (into (sorted-map)))))))
 
   (tib
-   (let [fname human
-         h2 (second (sequence-headers fname))
-         {:keys [name dna-offset dna-size]} h2]
-     (->> (genome-sequence fname h2)
-          (take 40000)
-          frequencies)))
-
-
+   (->> (randgenome)
+        (take 1000000)
+        (partition-by identity)
+        (map count)
+        frequencies
+        (into (sorted-map))))
+  
   ;; Get frequencies for all sequences in parallel
   (tib
    (let [fname human
@@ -260,7 +236,5 @@
                                (take 100000)
                                frequencies))]
      (apply (partial merge-with +) (pmap freq-fn hdrs))))
-
-  
 
   )
