@@ -205,3 +205,9 @@
                           (partition-all 60)
                           (map genome-str))]
          (println l))))))
+
+(type
+ (->> (range)
+      (drop 10000)
+      (take 300)
+      reverse))

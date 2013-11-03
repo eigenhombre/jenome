@@ -1,6 +1,7 @@
 (ns jenome.examples
-  (:use jenome.core
-        [clojure.java.io :only [resource as-file]]))
+  (:require [jenome.core :refer :all]
+            [jenome.graphs :refer :all]
+            [clojure.java.io :refer [resource as-file]]))
 
 
 ; Adjust location to suit:
@@ -25,9 +26,6 @@
                                 dursec#
                                 result#))
                result#))))
-
-(tib (count (range (* 1000 1000 1000 3))))
-
 
 (defn count'
   "
@@ -202,15 +200,81 @@
                     (map count)
                     frequencies
                     (into (sorted-map)))))
+;; Code: (apply (partial merge-with +) (pseq human (remove #{:N})
+;; (partition-by identity) (map count) frequencies (into
+;; (sorted-map))))
+;; Time: 17218.424726 seconds
+;; Result: {1 1457848027, 2 379139089, 3 126579350, 4 42237362, 5
+;; 14613038, 6 4215486, 7 1617976, 8 574575, 9 326215, 10 211234, 11
+;; 128797, 12 100108, 13 87741, 14 77897, 15 69379, 16 59442, 17
+;; 47857, 18 38422, 19 32555, 20 27627, 21 24402, 22 22362, 23 19628,
+;; 24 16927, 25 13982, 26 10854, 27 8469, 28 6814, 29 5223, 30 3815,
+;; 31 2442, 32 1735, 33 1319, 34 974, 35 873, 36 868, 37 898, 38 806,
+;; 39 680, 40 561, 41 389, 42 274, 43 200, 44 165, 45 148, 46 147, 47
+;; 132, 48 105, 49 80, 50 63, 51 61, 52 46, 53 30, 54 30, 55 22, 56
+;; 19, 57 10, 58 11, 59 4, 60 5, 61 1, 62 2, 63 2, 65 1, 66 1, 68 2,
+;; 69 1, 70 1, 72 1, 73 1, 79 1, 81 1, 83 1, 90 1}
+
+  (tib
+   (doseq [f [#(randgenome)
+              #(genome-sequence yeast)
+              #(genome-sequence human)]]
+     (->> (f)
+          (take 40000000)
+          get-lengths
+          (make-hist 0.5 60.5 60)
+          trim-zeros
+          (draw-hist "Repeat Lengths"))))
+
+  (defn combine-two-hists [a b]
+    (map (fn [[x1 y1] [x2 y2]] [x1 (+ y1 y2)]) a b))
+
+  (defn combine-hists [nbins seq-of-hists]
+    (reduce combine-two-hists (for [i (range nbins)] [i 0]) seq-of-hists))
   
+  (doseq [f [#(take 1000000 (randgenome))
+             #(genome-sequence yeast)
+             #(genome-sequence human)]]
+    (tib
+     (->> (f)
+          (partition 100000)
+          (map get-lengths)
+          (pmap #(make-hist 0.5 60.5 60 %))
+          (map trim-zeros)
+          (combine-hists 60)
+          (draw-hist "Repeat Lengths"))))
+
   (tib
    (->> (randgenome)
         (take 1000000)
-        (partition-by identity)
-        (map count)
-        frequencies
-        (into (sorted-map))))
-  
+        get-lengths
+        (make-hist 0.5 60.5 60)
+        trim-zeros
+        (draw-hist "Repeat Lengths, random hypothesis")))
+
+  (tib
+   (->> (genome-sequence yeast)
+        get-lengths
+        (make-hist 0.5 60.5 60)
+        trim-zeros
+        (draw-hist "Repeat Lengths, S. Cerviciae")))
+
+  (tib
+   (->> (genome-sequence human)
+        (take 10000000)
+        get-lengths
+        (make-hist 0.5 60.5 60)
+        trim-zeros
+        (draw-hist "Repeat Lengths, human genome")))
+
+
+
+  ;; (graph-lengths (take 1000000 (randgenome)) 0 1000)
+  ;; (graph-lengths (take 1000000 (genome-sequence yeast)) 15 10000)
+  ;; (graph-lengths (genome-sequence yeast) 15 100000)
+  ;; (graph-lengths (take 1000000 (genome-sequence human)))
+  ;; (graph-lengths (take 1000000 (genome-sequence human)) 15 1000)
+ 
   ;; Get frequencies for all sequences in parallel
   (tib
    (let [fname human
@@ -233,4 +297,34 @@
   (tib (apply (partial merge-with +)
               (pseq yeast frequencies)))
 
+
+  ;; Problems with count:
+  (tib (count (range (* 1000 1000 1000 3))))
+
+
+  ;; Dictionary words
+  ;;  (def wordfile "/usr/share/dict/words")
+  (def wordfile "/tmp/words.csv")
+  (require '[clojure.string :as str])
+  (def wordlines (str/split (slurp wordfile) #"\n"))
+
+  (def words
+    (->> wordlines
+         (map #(str/split % #","))
+         (map first)))
+
+  ;; convert to lowercase
+  (defn tolower [s] (apply str (map #(Character/toLowerCase %) s)))
+
+  (tolower "AAABADddcc")
+
+  (def lcwords (map tolower words))
+
+  (defn is-only-basepairs [s] (every? (set "agct") s))
+
+  (def only-basepair-words (filter is-only-basepairs lcwords))
+
+  (group-by count only-basepair-words)
+
   )
+
