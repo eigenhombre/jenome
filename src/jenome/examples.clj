@@ -215,17 +215,6 @@
 ;; 19, 57 10, 58 11, 59 4, 60 5, 61 1, 62 2, 63 2, 65 1, 66 1, 68 2,
 ;; 69 1, 70 1, 72 1, 73 1, 79 1, 81 1, 83 1, 90 1}
 
-  (tib
-   (doseq [f [#(randgenome)
-              #(genome-sequence yeast)
-              #(genome-sequence human)]]
-     (->> (f)
-          (take 40000000)
-          get-lengths
-          (make-hist 0.5 60.5 60)
-          trim-zeros
-          (draw-hist "Repeat Lengths"))))
-
   (defn combine-two-hists [a b]
     (map (fn [[x1 y1] [x2 y2]] [x1 (+ y1 y2)]) a b))
 
@@ -268,13 +257,6 @@
         (draw-hist "Repeat Lengths, human genome")))
 
 
-
-  ;; (graph-lengths (take 1000000 (randgenome)) 0 1000)
-  ;; (graph-lengths (take 1000000 (genome-sequence yeast)) 15 10000)
-  ;; (graph-lengths (genome-sequence yeast) 15 100000)
-  ;; (graph-lengths (take 1000000 (genome-sequence human)))
-  ;; (graph-lengths (take 1000000 (genome-sequence human)) 15 1000)
- 
   ;; Get frequencies for all sequences in parallel
   (tib
    (let [fname human
