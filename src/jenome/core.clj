@@ -4,10 +4,9 @@
   http://genome.ucsc.edu/FAQ/FAQformat#format7
   "
   (:gen-class)
-  (:use midje.sweet
-        [clojure.math.numeric-tower :only [ceil]]
-        [clojure.java.io :only [resource as-file]]
-        [jenome.rafile :only [read-with-offset]]))
+  (:require [clojure.math.numeric-tower :refer [ceil]]
+            [clojure.java.io :refer [resource as-file]]
+            [jenome.rafile :refer [read-with-offset]]))
 
 
 (defn deltas [s]
