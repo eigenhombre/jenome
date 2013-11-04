@@ -201,13 +201,7 @@
      (doseq [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
                                      (sequence-headers filename))]
        (println (format "%s ----- %d %d" name ofs dna-len))
-       (doseq [l (->> (genome-sequence filename ofs dna-len)
+       (doseq [l (->> (genome-sequence filename)
                           (partition-all 60)
                           (map genome-str))]
          (println l))))))
-
-(type
- (->> (range)
-      (drop 10000)
-      (take 300)
-      reverse))
