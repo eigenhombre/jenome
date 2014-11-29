@@ -1,6 +1,10 @@
 # jenome
 
+*"DNA is source code for the most complex machine in the universe."*
+--Randall Munroe, "What If?"
+
 Code for playing around with genome data, human or otherwise.
+
 
 ### Testing
 
