@@ -1,22 +1,18 @@
-(ns jenome.test-core
-  (:use [midje.sweet]
-        [clojure.java.io :only [as-file resource]]
-        [jenome.core]))
+(ns jenome.test-decode
+  (:require [clojure.java.io :refer [as-file resource]]
+            [jenome.decode :refer :all]
+            [jenome.util :refer [monotonic?]]
+            [midje.sweet :refer :all]))
 
 
 (facts "about utility functions"
        (map nybs-to-bases [0 1 2 3]) => [:T :C :A :G]
        (map nybs-to-bases [0 1 2 3]) => [:T :C :A :G]
-       (byte-to-base-pairs 0X1B)     => [:T :C :A :G]
-       (rounding-up-divide 4 5)      => 1
-       (rounding-up-divide 5 5)      => 1
-       (rounding-up-divide 6 5)      => 2
-       (rounding-up-divide 10 5)     => 2
-       (rounding-up-divide 11 5)     => 3)
+       (byte-to-base-pairs 0X1B)     => [:T :C :A :G])
 
 
 (defn yeast-section [from to]
-  (->> (resource "sacCer3.2bit") 
+  (->> (resource "sacCer3.2bit")
        as-file
        genome-sequence
        (drop from)

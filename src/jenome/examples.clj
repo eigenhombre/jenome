@@ -1,5 +1,5 @@
 (ns jenome.examples
-  (:require [jenome.core :refer :all]
+  (:require [jenome.decode :refer :all]
             [jenome.graphs :refer :all]
             [clojure.java.io :refer [resource as-file]]))
 
@@ -27,16 +27,6 @@
                                 dursec#
                                 result#))
                result#))))
-
-(defn count'
-  "
-  Non-overflowing version of count
-  "
-  [s]
-  (loop [s s, n 0] (if (seq s)
-                     (recur (rest s)
-                            (inc' n))
-                     n)))
 
 
 (defn write-seq
