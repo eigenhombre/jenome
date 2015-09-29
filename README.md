@@ -11,7 +11,7 @@ Code for playing around with genome data, human or otherwise.
 
 ### Testing
 
-    lein midje # add --lazytest to automatically retest after updating code
+    lein spec # add `-a` to automatically retest after updating code.
 
 ### Process a .2bit genome file (convert to FASTA-like plain text in stdout):
 
