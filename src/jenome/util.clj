@@ -41,5 +41,11 @@
              (lazy-mapcat f (rest coll))))))
 
 
-
-
+(defn write-seq
+  "
+  Write a (potentially very long) sequence of lines to a text file
+  "
+  [filename s]
+  (with-open [wrt (clojure.java.io/writer filename)]
+    (doseq [x s]
+      (.write wrt (str x "\n")))))

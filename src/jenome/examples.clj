@@ -1,7 +1,8 @@
 (ns jenome.examples
-  (:require [jenome.decode :refer :all]
+  (:require [clojure.java.io :refer [resource as-file]]
+            [jenome.decode :refer :all]
             [jenome.graphs :refer :all]
-            [clojure.java.io :refer [resource as-file]]))
+            [jenome.util :refer [write-seq]]))
 
 
 ; Adjust location to suit:
@@ -27,16 +28,6 @@
                                 dursec#
                                 result#))
                result#))))
-
-
-(defn write-seq
-  "
-  Write a (potentially very long) sequence of lines to a text file
-  "
-  [filename s]
-  (with-open [wrt (clojure.java.io/writer filename)]
-    (doseq [x s]
-      (.write wrt (str x "\n")))))
 
 
 (defmacro pseq

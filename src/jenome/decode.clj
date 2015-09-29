@@ -97,7 +97,8 @@
          :n-block-starts n-block-starts
          :n-block-sizes n-block-sizes
          :mask-block-count mask-block-count
-         ; :mask-block-starts mask-block-starts  ... these are massive for the Human Genome
+         ; :mask-block-starts mask-block-starts ... these are massive
+         ; for the Human Genome
          ; :mask-block-sizes mask-block-sizes    ...
          :dna-offset ofs}))))
 
