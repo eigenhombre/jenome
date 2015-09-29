@@ -7,6 +7,7 @@
 ; Adjust location to suit:
 (def human "/Users/jacobsen/Programming/Lisp/Clojure/jenome/hg19.2bit")
 (def yeast (as-file (resource "sacCer3.2bit")))
+(def yeast-ascii (as-file (resource "sacCer3.fasta")))
 
 
 (defmacro tib
@@ -38,7 +39,7 @@
                      n)))
 
 
-(defn write-seq 
+(defn write-seq
   "
   Write a (potentially very long) sequence of lines to a text file
   "
@@ -67,7 +68,55 @@
     (repeatedly #(rand-nth [:A :G :C :T])))
 
 
+(def aminos (apply hash-map '(    UUU F      CUU L      AUU I      GUU V
+                                  UUC F      CUC L      AUC I      GUC V
+                                  UUA L      CUA L      AUA I      GUA V
+                                  UUG L      CUG L      AUG M      GUG V
+                                  UCU S      CCU P      ACU T      GCU A
+                                  UCC S      CCC P      ACC T      GCC A
+                                  UCA S      CCA P      ACA T      GCA A
+                                  UCG S      CCG P      ACG T      GCG A
+                                  UAU Y      CAU H      AAU N      GAU D
+                                  UAC Y      CAC H      AAC N      GAC D
+                                  UAA Stop   CAA Q      AAA K      GAA E
+                                  UAG Stop   CAG Q      AAG K      GAG E
+                                  UGU C      CGU R      AGU S      GGU G
+                                  UGC C      CGC R      AGC S      GGC G
+                                  UGA Stop   CGA R      AGA R      GGA G
+                                  UGG W      CGG R      AGG R      GGG G)))
+
+
+(defn triplet-to-aminos
+  [three]
+  (->> three
+       (map name)
+       (apply str)
+       symbol))
+
+
+(defn is-amino-translating-sequence
+  ""
+  [sym]
+  (not (nil? (aminos sym))))
+
+
 (comment
+
+  (->> yeast
+       genome-sequence
+       (map #(if (= % :T) :U %))
+       (drop 1)
+       (partition 3)
+       (take 3000)
+
+       (map triplet-to-aminos)
+       (map is-amino-translating-sequence)
+       (partition-by identity)
+       (map count)
+       ;; (make-hist 0.5 60.5 60)
+       ;; trim-zeros
+       ;; (draw-hist "Encoding lengths, yeast")
+       )
 
   (monotonic? (map :dna-offset (sequence-headers human))) ;;=> true
 
@@ -249,6 +298,13 @@
         (draw-hist "Repeat Lengths, S. Cerviciae")))
 
   (tib
+   (->> (genome-sequence-ascii yeast-ascii)
+        get-lengths
+        (make-hist 0.5 60.5 60)
+        trim-zeros
+        (draw-hist "Repeat Lengths, S. Cerviciae")))
+
+  (tib
    (->> (genome-sequence human)
         (take 10000000)
         get-lengths
@@ -256,6 +312,42 @@
         trim-zeros
         (draw-hist "Repeat Lengths, human genome")))
 
+
+  (defn lazy-file-lines
+    "
+    http://stackoverflow.com/questions/4118123/
+    read-a-very-large-text-file-into-a-list-in-clojure/13312151#13312151
+    "
+    [file]
+    (letfn [(helper [rdr]
+              (lazy-seq
+               (if-let [line (.readLine rdr)]
+                 (cons line (helper rdr))
+                 (do (.close rdr) nil))))]
+      (helper (clojure.java.io/reader file))))
+
+  (defn genome-sequence-ascii [f]
+    (->> (lazy-file-lines f)
+         (remove #(re-find #"^chr" %))
+         (apply concat)
+         (map (comp keyword str))))
+
+  (with-out-str
+    (time ))
+  (->> yeast-ascii
+       genome-sequence-ascii
+       (drop 160000000)
+       (take 10))
+  
+  (->> yeast-ascii
+        genome-sequence-ascii
+        (take 100000)
+        seque
+        get-lengths
+        (make-hist 0.5 60.5 60)
+        trim-zeros
+        (draw-hist "ASCII"))
+  
 
   ;; Get frequencies for all sequences in parallel
   (tib
