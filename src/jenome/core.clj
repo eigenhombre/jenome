@@ -169,7 +169,9 @@
      (let [ofs (:dna-offset hdr)
            dna-len (:dna-size hdr)
            byte-len (rounding-up-divide dna-len 4)
-           starts-and-lengths (get-buffer-starts-and-lengths ofs 10000 byte-len)]
+           starts-and-lengths (get-buffer-starts-and-lengths ofs
+                                                             10000
+                                                             byte-len)]
        (->> (for [[offset length] starts-and-lengths
                   b (read-with-offset fname offset length)]
               (byte-to-base-pairs b))
@@ -195,7 +197,8 @@
   (let [[filename & extra] args]
     (cond
      (seq extra) (println "unknown extra argument(s)" extra)
-     (nil? filename) (println "expected file name argument (2bit genome format)")
+     (nil? filename) (println "expected file name argument "
+                              "(2bit genome format)")
      :else
      (doseq [[ofs dna-len name] (map (juxt :dna-offset :dna-size :name)
                                      (sequence-headers filename))]
