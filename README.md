@@ -6,7 +6,7 @@
 Code for playing around with genome data, human or otherwise.
 
 **See my blog posts** at
-  [eigenhombre.com](http://eigenhombre.com/2013/07/05/exploratory-genomics-with-clojure/)
+  [johnj.com](http://johnj.com/exploratory-genomics-with-clojure.html)
   for many more details.
 
 ### Testing
